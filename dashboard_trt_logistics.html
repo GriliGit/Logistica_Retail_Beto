@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRT Food — Logistics Control Center</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg:#f5f5f3; --surface:#fff; --border:rgba(0,0,0,.1);
+  --text:#1a1a1a; --muted:#666; --radius:10px;
+  --green:#3B6D11; --green-bg:#EAF3DE;
+  --amber:#854F0B; --amber-bg:#FAEEDA;
+  --red:#A32D2D;   --red-bg:#FCEBEB;
+  --blue:#185FA5;  --blue-bg:#E6F1FB;
+  --gray-bg:#f1efe8;
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+body{background:var(--bg);color:var(--text);font-size:14px}
+.wrap{max-width:1400px;margin:0 auto;padding:1.25rem}
+/* Top bar */
+.topbar{display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface);border:0.5px solid var(--border);
+  border-radius:var(--radius);padding:.75rem 1.25rem;margin-bottom:1rem}
+.topbar h1{font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px}
+.topbar .meta{font-size:12px;color:var(--muted);display:flex;gap:16px;align-items:center}
+.badge-live{background:var(--green-bg);color:var(--green);
+  font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px}
+.gen-ts{font-size:11px;color:var(--muted);font-family:monospace}
+/* KPI row */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:10px;margin-bottom:1rem}
+.kpi{background:var(--gray-bg);border-radius:var(--radius);padding:.85rem 1rem}
+.kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.04em;margin-bottom:4px}
+.kpi-val{font-size:22px;font-weight:500}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.c-red{color:var(--red)} .c-amber{color:var(--amber)} .c-green{color:var(--green)}
+/* Nav */
+.nav{display:flex;gap:4px;border-bottom:.5px solid var(--border);margin-bottom:1rem}
+.nav-btn{font-size:13px;font-weight:400;padding:7px 14px;border:none;background:none;
+  color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;
+  margin-bottom:-1px;border-radius:0;transition:color .15s}
+.nav-btn.active{color:var(--text);font-weight:500;border-bottom-color:var(--text)}
+/* Section card */
+.section{background:var(--surface);border:.5px solid var(--border);
+  border-radius:var(--radius);margin-bottom:1rem;overflow:hidden}
+.sec-hdr{padding:.75rem 1rem;border-bottom:.5px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.sec-title{font-size:13px;font-weight:500}
+.filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.filters input,.filters select{
+  font-size:12px;padding:4px 8px;height:28px;border:.5px solid var(--border);
+  border-radius:6px;background:var(--surface);color:var(--text)}
+/* Table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;font-size:12px;border-collapse:collapse}
+th{font-size:11px;font-weight:500;color:var(--muted);text-align:left;
+  padding:7px 10px;background:var(--gray-bg);white-space:nowrap;
+  position:sticky;top:0;z-index:1}
+td{padding:6px 10px;border-bottom:.5px solid var(--border);
+  vertical-align:middle;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--gray-bg)}
+.mono{font-family:monospace;font-size:11px}
+/* Pills */
+.pill{display:inline-block;font-size:10px;font-weight:500;
+  padding:2px 8px;border-radius:20px}
+.p-ok{background:var(--green-bg);color:var(--green)}
+.p-warn{background:var(--amber-bg);color:var(--amber)}
+.p-bad{background:var(--red-bg);color:var(--red)}
+.p-info{background:var(--blue-bg);color:var(--blue)}
+.p-gray{background:var(--gray-bg);color:var(--muted)}
+/* Semáforo dot */
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px}
+.d-green{background:var(--green)}
+.d-amber{background:#BA7517}
+.d-red{background:var(--red)}
+/* Bar */
+.bar-bg{display:inline-block;width:60px;height:5px;
+  background:var(--gray-bg);border-radius:3px;vertical-align:middle;margin-right:4px}
+.bar-fill{height:5px;border-radius:3px;display:block}
+/* Charts row */
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:1rem}
+.chart-box{background:var(--gray-bg);border-radius:var(--radius);padding:.85rem}
+.chart-title{font-size:11px;font-weight:500;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;margin-bottom:.6rem}
+/* Tabs */
+.tab{display:none} .tab.active{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="topbar">
+  <h1>&#x1F69A; TRT Food &mdash; Logistics Control Center</h1>
+  <div class="meta">
+    <span>&#x1F4CD; Miami, FL &middot; Houston, TX &middot; Orlando, FL</span>
+    <span class="badge-live">&#x25CF; SAP B1 Live</span>
+    <span class="gen-ts">Generado: 2026-05-28 20:05:35</span>
+  </div>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="kpi-label">OC abiertas</div>
+    <div class="kpi-val">8</div>
+    <div class="kpi-sub">líneas pendientes</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Valor pendiente</div>
+    <div class="kpi-val">$62,866</div>
+    <div class="kpi-sub">importe total abierto</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Embarques atrasados</div>
+    <div class="kpi-val c-red">2</div>
+    <div class="kpi-sub">de 7 en ruta</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">SKUs bajo mínimo</div>
+    <div class="kpi-val c-amber">5</div>
+    <div class="kpi-sub">de 11 SKUs activos</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Movimientos hoy</div>
+    <div class="kpi-val">3</div>
+    <div class="kpi-sub">registros del día</div>
+  </div>
+</div>
+
+<nav class="nav">
+  <button class="nav-btn active" onclick="switchTab('ordenes',this)">&#x1F4CB; Órdenes abiertas</button>
+  <button class="nav-btn" onclick="switchTab('transito',this)">&#x1F6A2; Tránsito &amp; ETAs</button>
+  <button class="nav-btn" onclick="switchTab('inventario',this)">&#x1F3ED; Inventario almacenes</button>
+  <button class="nav-btn" onclick="switchTab('movimientos',this)">&#x21C4; Movimientos diarios</button>
+</nav>
+
+<!-- ── ORDENES ─────────────────────────────────────────────── -->
+<div id="tab-ordenes" class="tab active">
+  <div class="section">
+    <div class="sec-hdr">
+      <span class="sec-title">Órdenes de compra abiertas &mdash; OPOR / POR1</span>
+      <div class="filters">
+        <input type="text" id="f-ord-q" placeholder="Buscar SKU / proveedor..." oninput="filterOrd()">
+        <select id="f-ord-est" onchange="filterOrd()">
+          <option value="">Todos los estatus</option>
+          <option>En tiempo</option>
+          <option>Próximo vencer</option>
+          <option>Demorado</option>
+        </select>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table id="tbl-ord">
+        <thead><tr>
+          <th># Orden</th><th>Fecha emisión</th><th>Proveedor</th><th>Almacén</th>
+          <th>SKU</th><th>Descripción</th>
+          <th>Uds. totales</th><th>Uds. pendientes</th>
+          <th>Importe pendiente</th><th>Fecha ETA</th>
+          <th>Días ETA</th><th>Estatus ETA</th><th>Notas</th>
+        </tr></thead>
+        <tbody id="body-ord"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TRÁNSITO ────────────────────────────────────────────── -->
+<div id="tab-transito" class="tab">
+  <div class="kpi-row" id="kpi-trans" style="margin-bottom:1rem"></div>
+  <div class="section">
+    <div class="sec-hdr">
+      <span class="sec-title">Embarques en tránsito &mdash; ETAs actualizados</span>
+      <div class="filters">
+        <select id="f-trans-sem" onchange="filterTrans()">
+          <option value="">Todos</option>
+          <option value="Verde">En tiempo</option>
+          <option value="Amarillo">En riesgo</option>
+          <option value="Rojo">Atrasados</option>
+        </select>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table id="tbl-trans">
+        <thead><tr>
+          <th># Embarque</th><th># Orden</th><th>Proveedor</th>
+          <th>Origen</th><th>Almacén destino</th>
+          <th>Transportista</th><th>Modo</th>
+          <th>Fecha emisión</th><th>ETA original</th><th>ETA actual</th>
+          <th>Días</th><th>Semáforo</th>
+          <th>Uds. pendientes</th><th>Importe pendiente</th><th>Notas</th>
+        </tr></thead>
+        <tbody id="body-trans"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── INVENTARIO ─────────────────────────────────────────── -->
+<div id="tab-inventario" class="tab">
+  <div class="kpi-row" id="kpi-inv" style="margin-bottom:1rem"></div>
+  <div class="section">
+    <div class="sec-hdr">
+      <span class="sec-title">Stock por SKU × Almacén &mdash; OITW + OITM</span>
+      <div class="filters">
+        <select id="f-inv-alm" onchange="filterInv()">
+          <option value="">Todos los almacenes</option>
+          <option>Miami TRT Principal</option>
+          <option>Houston Distribution</option>
+          <option>Orlando Satellite</option>
+        </select>
+        <select id="f-inv-alerta" onchange="filterInv()">
+          <option value="">Todas las alertas</option>
+          <option>QUIEBRE</option>
+          <option>BAJO MÍNIMO</option>
+          <option>Normal</option>
+          <option>SOBRE MÁXIMO</option>
+        </select>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table id="tbl-inv">
+        <thead><tr>
+          <th>SKU</th><th>Descripción</th><th>Categoría</th><th>Almacén</th>
+          <th>Stock físico</th><th>Comprometido</th><th>Disponible</th>
+          <th>En orden</th><th>Proyectado</th>
+          <th>Mínimo</th><th>Máximo</th><th>Llenado</th>
+          <th>Alerta</th><th>Valor inventario</th>
+        </tr></thead>
+        <tbody id="body-inv"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── MOVIMIENTOS ────────────────────────────────────────── -->
+<div id="tab-movimientos" class="tab">
+  <div class="charts-row">
+    <div class="chart-box">
+      <div class="chart-title">Unidades por tipo de movimiento</div>
+      <div style="position:relative;height:150px">
+        <canvas id="chartTipo" role="img" aria-label="Unidades por tipo de movimiento"></canvas>
+      </div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">Valor movido por almacén (absoluto)</div>
+      <div style="position:relative;height:150px">
+        <canvas id="chartAlm" role="img" aria-label="Valor por almacén de destino"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="sec-hdr">
+      <span class="sec-title">Bitácora de movimientos &mdash; OINM / OIGN / OIGE / OWTR</span>
+      <div class="filters">
+        <select id="f-mov-tipo" onchange="filterMov()">
+          <option value="">Todos los tipos</option>
+          <option>Entrada</option><option>Salida</option>
+          <option>Traspaso</option><option>Devolución</option><option>Ajuste</option>
+        </select>
+        <select id="f-mov-alm" onchange="filterMov()">
+          <option value="">Todos los almacenes</option>
+          <option>Miami TRT Principal</option>
+          <option>Houston Distribution</option>
+          <option>Orlando Satellite</option>
+        </select>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table id="tbl-mov">
+        <thead><tr>
+          <th>Fecha</th><th>Tipo SAP</th><th>Tipo movimiento</th>
+          <th>SKU</th><th>Descripción</th>
+          <th>Almacén origen</th><th>Almacén destino</th>
+          <th>Entradas</th><th>Salidas</th><th>Neto</th>
+          <th>Costo unit.</th><th>Valor</th>
+          <th># Documento</th><th>Responsable</th>
+        </tr></thead>
+        <tbody id="body-mov"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+
+<script>
+const DATA = {
+  ordenes:     [{"Nro_Orden": "PO-2026-1041", "Fecha_Emision": "2026-05-02", "Proveedor": "SIPSOPA C.A.", "Almacen_Destino": "Miami TRT Principal", "SKU": "TRT-1273", "Descripcion": "Authentic Chupe Chicken Soup 6x1.55oz", "Unidades_Totales": 588, "Unidades_Pendientes": 588, "Unidades_Recibidas": 0, "Costo_Unitario": 4.8, "Importe_Total": 2822.4, "Importe_Pendiente": 2822.4, "Fecha_ETA": "2026-05-29", "Dias_Para_ETA": 1, "Estatus_ETA": "Próximo vencer", "Notas": "Comprobante enviado a proveedor"}, {"Nro_Orden": "PO-2026-1042", "Fecha_Emision": "2026-05-02", "Proveedor": "SIPSOPA C.A.", "Almacen_Destino": "Miami TRT Principal", "SKU": "TRT-1274", "Descripcion": "Authentic Ajiaco Chicken Soup 6x1.55oz", "Unidades_Totales": 588, "Unidades_Pendientes": 588, "Unidades_Recibidas": 0, "Costo_Unitario": 4.8, "Importe_Total": 2822.4, "Importe_Pendiente": 2822.4, "Fecha_ETA": "2026-05-29", "Dias_Para_ETA": 1, "Estatus_ETA": "Próximo vencer", "Notas": "En proceso de aduana"}, {"Nro_Orden": "PO-2026-1031", "Fecha_Emision": "2026-04-15", "Proveedor": "ABLEMX S.A.", "Almacen_Destino": "Miami TRT Principal", "SKU": "TRT-1098", "Descripcion": "Mi Vaca Sweetened Condensed Milk 24x380g", "Unidades_Totales": 2484, "Unidades_Pendientes": 2484, "Unidades_Recibidas": 0, "Costo_Unitario": 6.2, "Importe_Total": 15400.8, "Importe_Pendiente": 15400.8, "Fecha_ETA": "2026-06-08", "Dias_Para_ETA": 11, "Estatus_ETA": "En tiempo", "Notas": "ETA confirmada 06/08"}, {"Nro_Orden": "PO-2026-1028", "Fecha_Emision": "2026-04-10", "Proveedor": "PROMESA VEN", "Almacen_Destino": "Houston Distribution", "SKU": "TRT-0881", "Descripcion": "Cacao en polvo El Rey 24x250g", "Unidades_Totales": 1200, "Unidades_Pendientes": 1200, "Unidades_Recibidas": 0, "Costo_Unitario": 8.4, "Importe_Total": 10080.0, "Importe_Pendiente": 10080.0, "Fecha_ETA": "2026-06-15", "Dias_Para_ETA": 18, "Estatus_ETA": "En tiempo", "Notas": "Aguardando confirmación bancaria"}, {"Nro_Orden": "PO-2026-1019", "Fecha_Emision": "2026-03-28", "Proveedor": "SIPSOPA C.A.", "Almacen_Destino": "Miami TRT Principal", "SKU": "TRT-0762", "Descripcion": "Harina P.A.N. Blanca 12x1kg", "Unidades_Totales": 3600, "Unidades_Pendientes": 1800, "Unidades_Recibidas": 1800, "Costo_Unitario": 3.1, "Importe_Total": 11160.0, "Importe_Pendiente": 5580.0, "Fecha_ETA": "2026-05-18", "Dias_Para_ETA": -10, "Estatus_ETA": "Demorado", "Notas": "Segunda entrega pendiente — contenedor en patio"}, {"Nro_Orden": "PO-2026-1015", "Fecha_Emision": "2026-03-20", "Proveedor": "LACTEOS DEL SUR", "Almacen_Destino": "Orlando Satellite", "SKU": "TRT-0654", "Descripcion": "Queso Blanco Llanero 12x500g", "Unidades_Totales": 960, "Unidades_Pendientes": 960, "Unidades_Recibidas": 0, "Costo_Unitario": 11.2, "Importe_Total": 10752.0, "Importe_Pendiente": 10752.0, "Fecha_ETA": "2026-05-21", "Dias_Para_ETA": -7, "Estatus_ETA": "Demorado", "Notas": "Retenido aduana Miami — requiere FDA clearance"}, {"Nro_Orden": "PO-2026-1009", "Fecha_Emision": "2026-03-10", "Proveedor": "CARONI FOODS", "Almacen_Destino": "Houston Distribution", "SKU": "TRT-0520", "Descripcion": "Papelón con Limón 24x500ml", "Unidades_Totales": 720, "Unidades_Pendientes": 720, "Unidades_Recibidas": 0, "Costo_Unitario": 5.6, "Importe_Total": 4032.0, "Importe_Pendiente": 4032.0, "Fecha_ETA": "2026-06-01", "Dias_Para_ETA": 4, "Estatus_ETA": "En tiempo", "Notas": ""}, {"Nro_Orden": "PO-2026-1005", "Fecha_Emision": "2026-03-01", "Proveedor": "ABLEMX S.A.", "Almacen_Destino": "Miami TRT Principal", "SKU": "TRT-0490", "Descripcion": "Café Madrid Espresso 24x250g", "Unidades_Totales": 1440, "Unidades_Pendientes": 1440, "Unidades_Recibidas": 0, "Costo_Unitario": 7.9, "Importe_Total": 11376.0, "Importe_Pendiente": 11376.0, "Fecha_ETA": "2026-06-10", "Dias_Para_ETA": 13, "Estatus_ETA": "En tiempo", "Notas": ""}],
+  transito:    [{"Nro_Embarque": "EMB-001041", "Nro_Orden": "PO-2026-1041", "Proveedor": "SIPSOPA C.A.", "Pais_Origen": "Venezuela", "Ciudad_Origen": "Valencia", "Almacen_Destino": "Miami TRT Principal", "Transportista": "Maersk Line", "Modo_Transporte": "Marítimo", "Fecha_Emision": "2026-05-02", "ETA_Original": "2026-05-29", "ETA_Actual": "2026-05-29", "Dias_Para_Llegar": 1, "Semaforo": "Amarillo", "Unidades_Pendientes": 588, "Importe_Pendiente": 2822.4, "Notas": "En ruta, sin novedades"}, {"Nro_Embarque": "EMB-001042", "Nro_Orden": "PO-2026-1042", "Proveedor": "SIPSOPA C.A.", "Pais_Origen": "Venezuela", "Ciudad_Origen": "Caracas", "Almacen_Destino": "Miami TRT Principal", "Transportista": "Maersk Line", "Modo_Transporte": "Marítimo", "Fecha_Emision": "2026-05-02", "ETA_Original": "2026-05-29", "ETA_Actual": "2026-05-31", "Dias_Para_Llegar": 3, "Semaforo": "Amarillo", "Unidades_Pendientes": 588, "Importe_Pendiente": 2822.4, "Notas": "Demora 2 días en Puerto Cabello"}, {"Nro_Embarque": "EMB-001031", "Nro_Orden": "PO-2026-1031", "Proveedor": "ABLEMX S.A.", "Pais_Origen": "Mexico", "Ciudad_Origen": "Monterrey", "Almacen_Destino": "Miami TRT Principal", "Transportista": "FedEx Freight", "Modo_Transporte": "Terrestre", "Fecha_Emision": "2026-05-10", "ETA_Original": "2026-06-08", "ETA_Actual": "2026-06-08", "Dias_Para_Llegar": 11, "Semaforo": "Verde", "Unidades_Pendientes": 2484, "Importe_Pendiente": 15400.8, "Notas": "En tránsito normal"}, {"Nro_Embarque": "EMB-001028", "Nro_Orden": "PO-2026-1028", "Proveedor": "PROMESA VEN", "Pais_Origen": "Venezuela", "Ciudad_Origen": "Caracas", "Almacen_Destino": "Houston Distribution", "Transportista": "MSC", "Modo_Transporte": "Marítimo", "Fecha_Emision": "2026-05-01", "ETA_Original": "2026-06-15", "ETA_Actual": "2026-06-15", "Dias_Para_Llegar": 18, "Semaforo": "Verde", "Unidades_Pendientes": 1200, "Importe_Pendiente": 10080.0, "Notas": ""}, {"Nro_Embarque": "EMB-001019", "Nro_Orden": "PO-2026-1019", "Proveedor": "SIPSOPA C.A.", "Pais_Origen": "Venezuela", "Ciudad_Origen": "Caracas", "Almacen_Destino": "Miami TRT Principal", "Transportista": "Crowley", "Modo_Transporte": "Marítimo", "Fecha_Emision": "2026-04-18", "ETA_Original": "2026-05-18", "ETA_Actual": "2026-05-18", "Dias_Para_Llegar": -10, "Semaforo": "Rojo", "Unidades_Pendientes": 1800, "Importe_Pendiente": 5580.0, "Notas": "Segunda entrega — contenedor en patio puerto Miami"}, {"Nro_Embarque": "EMB-001015", "Nro_Orden": "PO-2026-1015", "Proveedor": "LACTEOS DEL SUR", "Pais_Origen": "Venezuela", "Ciudad_Origen": "Maracaibo", "Almacen_Destino": "Orlando Satellite", "Transportista": "DHL Global", "Modo_Transporte": "Marítimo", "Fecha_Emision": "2026-04-20", "ETA_Original": "2026-05-21", "ETA_Actual": "2026-05-28", "Dias_Para_Llegar": -7, "Semaforo": "Rojo", "Unidades_Pendientes": 960, "Importe_Pendiente": 10752.0, "Notas": "RETENIDO ADUANA — requiere FDA clearance Form 2877"}, {"Nro_Embarque": "EMB-001009", "Nro_Orden": "PO-2026-1009", "Proveedor": "CARONI FOODS", "Pais_Origen": "Venezuela", "Ciudad_Origen": "Caracas", "Almacen_Destino": "Houston Distribution", "Transportista": "MSC", "Modo_Transporte": "Marítimo", "Fecha_Emision": "2026-05-12", "ETA_Original": "2026-06-01", "ETA_Actual": "2026-06-01", "Dias_Para_Llegar": 4, "Semaforo": "Verde", "Unidades_Pendientes": 720, "Importe_Pendiente": 4032.0, "Notas": ""}],
+  inventario:  [{"SKU": "TRT-1273", "Descripcion": "Chupe Chicken Soup 6x1.55oz", "Categoria": "Sopas", "Almacen": "Miami TRT Principal", "Stock_Fisico": 320, "Stock_Comprometido": 180, "Stock_Disponible": 140, "Stock_En_Orden": 588, "Stock_Proyectado": 728, "Stock_Minimo": 500, "Stock_Maximo": 1200, "Costo_Unitario": 4.8, "Valor_Inventario": 1536.0, "Alerta": "BAJO MÍNIMO"}, {"SKU": "TRT-1274", "Descripcion": "Ajiaco Chicken Soup 6x1.55oz", "Categoria": "Sopas", "Almacen": "Miami TRT Principal", "Stock_Fisico": 195, "Stock_Comprometido": 120, "Stock_Disponible": 75, "Stock_En_Orden": 588, "Stock_Proyectado": 663, "Stock_Minimo": 400, "Stock_Maximo": 1000, "Costo_Unitario": 4.8, "Valor_Inventario": 936.0, "Alerta": "BAJO MÍNIMO"}, {"SKU": "TRT-1098", "Descripcion": "Mi Vaca Condensed Milk 24x380g", "Categoria": "Lácteos", "Almacen": "Miami TRT Principal", "Stock_Fisico": 840, "Stock_Comprometido": 300, "Stock_Disponible": 540, "Stock_En_Orden": 2484, "Stock_Proyectado": 3024, "Stock_Minimo": 600, "Stock_Maximo": 2000, "Costo_Unitario": 6.2, "Valor_Inventario": 5208.0, "Alerta": "Normal"}, {"SKU": "TRT-0762", "Descripcion": "Harina P.A.N. Blanca 12x1kg", "Categoria": "Harinas", "Almacen": "Miami TRT Principal", "Stock_Fisico": 1250, "Stock_Comprometido": 600, "Stock_Disponible": 650, "Stock_En_Orden": 1800, "Stock_Proyectado": 2450, "Stock_Minimo": 800, "Stock_Maximo": 3000, "Costo_Unitario": 3.1, "Valor_Inventario": 3875.0, "Alerta": "Normal"}, {"SKU": "TRT-0490", "Descripcion": "Café Madrid Espresso 24x250g", "Categoria": "Café", "Almacen": "Miami TRT Principal", "Stock_Fisico": 420, "Stock_Comprometido": 150, "Stock_Disponible": 270, "Stock_En_Orden": 1440, "Stock_Proyectado": 1710, "Stock_Minimo": 300, "Stock_Maximo": 1200, "Costo_Unitario": 7.9, "Valor_Inventario": 3318.0, "Alerta": "Normal"}, {"SKU": "TRT-0310", "Descripcion": "Guayaba en Almíbar 24x825g", "Categoria": "Conservas", "Almacen": "Miami TRT Principal", "Stock_Fisico": 720, "Stock_Comprometido": 240, "Stock_Disponible": 480, "Stock_En_Orden": 0, "Stock_Proyectado": 480, "Stock_Minimo": 400, "Stock_Maximo": 1500, "Costo_Unitario": 4.2, "Valor_Inventario": 3024.0, "Alerta": "Normal"}, {"SKU": "TRT-0285", "Descripcion": "Sardinas Tuny en Tomate 24x170g", "Categoria": "Conservas", "Almacen": "Miami TRT Principal", "Stock_Fisico": 1100, "Stock_Comprometido": 400, "Stock_Disponible": 700, "Stock_En_Orden": 0, "Stock_Proyectado": 700, "Stock_Minimo": 500, "Stock_Maximo": 2000, "Costo_Unitario": 5.1, "Valor_Inventario": 5610.0, "Alerta": "Normal"}, {"SKU": "TRT-0881", "Descripcion": "Cacao El Rey 24x250g", "Categoria": "Repostería", "Almacen": "Houston Distribution", "Stock_Fisico": 290, "Stock_Comprometido": 100, "Stock_Disponible": 190, "Stock_En_Orden": 1200, "Stock_Proyectado": 1390, "Stock_Minimo": 400, "Stock_Maximo": 1500, "Costo_Unitario": 8.4, "Valor_Inventario": 2436.0, "Alerta": "BAJO MÍNIMO"}, {"SKU": "TRT-0520", "Descripcion": "Papelón con Limón 24x500ml", "Categoria": "Bebidas", "Almacen": "Houston Distribution", "Stock_Fisico": 560, "Stock_Comprometido": 200, "Stock_Disponible": 360, "Stock_En_Orden": 720, "Stock_Proyectado": 1080, "Stock_Minimo": 300, "Stock_Maximo": 1200, "Costo_Unitario": 5.6, "Valor_Inventario": 3136.0, "Alerta": "Normal"}, {"SKU": "TRT-0654", "Descripcion": "Queso Blanco Llanero 12x500g", "Categoria": "Lácteos", "Almacen": "Orlando Satellite", "Stock_Fisico": 80, "Stock_Comprometido": 60, "Stock_Disponible": 20, "Stock_En_Orden": 960, "Stock_Proyectado": 980, "Stock_Minimo": 200, "Stock_Maximo": 600, "Costo_Unitario": 11.2, "Valor_Inventario": 896.0, "Alerta": "BAJO MÍNIMO"}, {"SKU": "TRT-1098", "Descripcion": "Mi Vaca Condensed Milk 24x380g", "Categoria": "Lácteos", "Almacen": "Orlando Satellite", "Stock_Fisico": 240, "Stock_Comprometido": 80, "Stock_Disponible": 160, "Stock_En_Orden": 0, "Stock_Proyectado": 160, "Stock_Minimo": 200, "Stock_Maximo": 500, "Costo_Unitario": 6.2, "Valor_Inventario": 1488.0, "Alerta": "BAJO MÍNIMO"}],
+  movimientos: [{"Fecha": "2026-05-28", "Tipo_Transaccion_SAP": 20, "Tipo_Movimiento": "Entrada", "SKU": "TRT-0762", "Descripcion": "Harina P.A.N. Blanca 12x1kg", "Almacen_Origen_Code": "EXT", "Almacen_Origen": "Ext - Puerto Miami", "Almacen_Destino_Code": "MIA01", "Almacen_Destino": "Miami TRT Principal", "Unidades_Entrada": 900, "Unidades_Salida": 0, "Unidades_Neto": 900, "Costo_Unitario": 3.1, "Valor_Movimiento": 2790.0, "Nro_Documento": "GR-2026-0901", "Responsable": "M. González"}, {"Fecha": "2026-05-28", "Tipo_Transaccion_SAP": 13, "Tipo_Movimiento": "Salida", "SKU": "TRT-1273", "Descripcion": "Chupe Chicken Soup 6x1.55oz", "Almacen_Origen_Code": "MIA01", "Almacen_Origen": "Miami TRT Principal", "Almacen_Destino_Code": "CUST", "Almacen_Destino": "Walmart Store #4821", "Unidades_Entrada": 0, "Unidades_Salida": 144, "Unidades_Neto": -144, "Costo_Unitario": 4.8, "Valor_Movimiento": -691.2, "Nro_Documento": "INV-2026-8840", "Responsable": "R. Pérez"}, {"Fecha": "2026-05-28", "Tipo_Transaccion_SAP": 13, "Tipo_Movimiento": "Salida", "SKU": "TRT-0490", "Descripcion": "Café Madrid Espresso 24x250g", "Almacen_Origen_Code": "MIA01", "Almacen_Origen": "Miami TRT Principal", "Almacen_Destino_Code": "CUST", "Almacen_Destino": "Walmart Store #4821", "Unidades_Entrada": 0, "Unidades_Salida": 96, "Unidades_Neto": -96, "Costo_Unitario": 7.9, "Valor_Movimiento": -758.4, "Nro_Documento": "INV-2026-8840", "Responsable": "R. Pérez"}, {"Fecha": "2026-05-27", "Tipo_Transaccion_SAP": 67, "Tipo_Movimiento": "Traspaso", "SKU": "TRT-1098", "Descripcion": "Mi Vaca Condensed Milk 24x380g", "Almacen_Origen_Code": "MIA01", "Almacen_Origen": "Miami TRT Principal", "Almacen_Destino_Code": "ORL01", "Almacen_Destino": "Orlando Satellite", "Unidades_Entrada": 0, "Unidades_Salida": 240, "Unidades_Neto": -240, "Costo_Unitario": 6.2, "Valor_Movimiento": -1488.0, "Nro_Documento": "WTR-2026-0214", "Responsable": "K. Domínguez"}, {"Fecha": "2026-05-27", "Tipo_Transaccion_SAP": 13, "Tipo_Movimiento": "Salida", "SKU": "TRT-0285", "Descripcion": "Sardinas Tuny en Tomate 24x170g", "Almacen_Origen_Code": "MIA01", "Almacen_Origen": "Miami TRT Principal", "Almacen_Destino_Code": "CUST", "Almacen_Destino": "Publix #2214", "Unidades_Entrada": 0, "Unidades_Salida": 48, "Unidades_Neto": -48, "Costo_Unitario": 5.1, "Valor_Movimiento": -244.8, "Nro_Documento": "INV-2026-8835", "Responsable": "A. López"}, {"Fecha": "2026-05-27", "Tipo_Transaccion_SAP": 14, "Tipo_Movimiento": "Devolución", "SKU": "TRT-0654", "Descripcion": "Queso Blanco Llanero 12x500g", "Almacen_Origen_Code": "CUST", "Almacen_Origen": "Walmart Store #3311", "Almacen_Destino_Code": "MIA01", "Almacen_Destino": "Miami TRT Principal", "Unidades_Entrada": 12, "Unidades_Salida": 0, "Unidades_Neto": 12, "Costo_Unitario": 11.2, "Valor_Movimiento": 134.4, "Nro_Documento": "RET-2026-0088", "Responsable": "M. González"}, {"Fecha": "2026-05-26", "Tipo_Transaccion_SAP": 16, "Tipo_Movimiento": "Ajuste", "SKU": "TRT-0310", "Descripcion": "Guayaba en Almíbar 24x825g", "Almacen_Origen_Code": "MIA01", "Almacen_Origen": "Miami TRT Principal", "Almacen_Destino_Code": "MIA01", "Almacen_Destino": "Miami TRT Principal", "Unidades_Entrada": 0, "Unidades_Salida": 18, "Unidades_Neto": -18, "Costo_Unitario": 4.2, "Valor_Movimiento": -75.6, "Nro_Documento": "CNT-2026-0031", "Responsable": "Inventario"}, {"Fecha": "2026-05-26", "Tipo_Transaccion_SAP": 20, "Tipo_Movimiento": "Entrada", "SKU": "TRT-0520", "Descripcion": "Papelón con Limón 24x500ml", "Almacen_Origen_Code": "EXT", "Almacen_Origen": "Ext - Puerto Houston", "Almacen_Destino_Code": "HOU01", "Almacen_Destino": "Houston Distribution", "Unidades_Entrada": 360, "Unidades_Salida": 0, "Unidades_Neto": 360, "Costo_Unitario": 5.6, "Valor_Movimiento": 2016.0, "Nro_Documento": "GR-2026-0899", "Responsable": "C. Ramos"}, {"Fecha": "2026-05-25", "Tipo_Transaccion_SAP": 13, "Tipo_Movimiento": "Salida", "SKU": "TRT-0881", "Descripcion": "Cacao El Rey 24x250g", "Almacen_Origen_Code": "HOU01", "Almacen_Origen": "Houston Distribution", "Almacen_Destino_Code": "CUST", "Almacen_Destino": "HEB #1102", "Unidades_Entrada": 0, "Unidades_Salida": 60, "Unidades_Neto": -60, "Costo_Unitario": 8.4, "Valor_Movimiento": -504.0, "Nro_Documento": "INV-2026-8830", "Responsable": "C. Ramos"}, {"Fecha": "2026-05-25", "Tipo_Transaccion_SAP": 13, "Tipo_Movimiento": "Salida", "SKU": "TRT-0762", "Descripcion": "Harina P.A.N. Blanca 12x1kg", "Almacen_Origen_Code": "MIA01", "Almacen_Origen": "Miami TRT Principal", "Almacen_Destino_Code": "CUST", "Almacen_Destino": "Walmart Store #4821", "Unidades_Entrada": 0, "Unidades_Salida": 288, "Unidades_Neto": -288, "Costo_Unitario": 3.1, "Valor_Movimiento": -892.8, "Nro_Documento": "INV-2026-8835", "Responsable": "R. Pérez"}, {"Fecha": "2026-05-24", "Tipo_Transaccion_SAP": 59, "Tipo_Movimiento": "Entrada", "SKU": "TRT-0285", "Descripcion": "Sardinas Tuny en Tomate 24x170g", "Almacen_Origen_Code": "EXT", "Almacen_Origen": "Ext - Puerto Miami", "Almacen_Destino_Code": "MIA01", "Almacen_Destino": "Miami TRT Principal", "Unidades_Entrada": 480, "Unidades_Salida": 0, "Unidades_Neto": 480, "Costo_Unitario": 5.1, "Valor_Movimiento": 2448.0, "Nro_Documento": "GR-2026-0895", "Responsable": "M. González"}, {"Fecha": "2026-05-24", "Tipo_Transaccion_SAP": 68, "Tipo_Movimiento": "Traspaso", "SKU": "TRT-1098", "Descripcion": "Mi Vaca Condensed Milk 24x380g", "Almacen_Origen_Code": "ORL01", "Almacen_Origen": "Orlando Satellite", "Almacen_Destino_Code": "ORL01", "Almacen_Destino": "Orlando Satellite", "Unidades_Entrada": 240, "Unidades_Salida": 0, "Unidades_Neto": 240, "Costo_Unitario": 6.2, "Valor_Movimiento": 1488.0, "Nro_Documento": "WTR-2026-0214", "Responsable": "K. Domínguez"}]
+};
+
+const fmt  = n => n == null ? '—' : Number(n).toLocaleString('en-US');
+const fmtD = n => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+
+function diasPill(d) {
+  const n = Number(d);
+  if (n < 0)  return `<span style="color:#A32D2D;font-weight:500">${n}d</span>`;
+  if (n <= 3) return `<span style="color:#BA7517;font-weight:500">${n}d</span>`;
+  return `<span style="color:#3B6D11;font-weight:500">+${n}d</span>`;
+}
+function semTag(s) {
+  const map = {
+    'Verde':    ['d-green','p-ok',   'En tiempo'],
+    'Amarillo': ['d-amber','p-warn', 'En riesgo'],
+    'Rojo':     ['d-red',  'p-bad',  'Atrasado'],
+  };
+  const [dot, pill, lbl] = map[s] || ['','p-gray',s];
+  return `<span class="pill ${pill}"><span class="dot ${dot}"></span>${lbl}</span>`;
+}
+function estatusTag(e) {
+  const m = {'En tiempo':'p-ok','Próximo vencer':'p-warn','Demorado':'p-bad'};
+  return `<span class="pill ${m[e]||'p-gray'}">${e}</span>`;
+}
+function alertaTag(a) {
+  const m = {'QUIEBRE':'p-bad','BAJO MÍNIMO':'p-warn','Normal':'p-ok','SOBRE MÁXIMO':'p-info'};
+  return `<span class="pill ${m[a]||'p-gray'}">${a}</span>`;
+}
+function movTag(t) {
+  const m = {'Entrada':'p-ok','Salida':'p-info','Traspaso':'p-gray','Devolución':'p-warn','Ajuste':'p-bad'};
+  return `<span class="pill ${m[t]||'p-gray'}">${t}</span>`;
+}
+function bar(val, mn, mx) {
+  const pct = Math.min(100, Math.round(val / mx * 100));
+  const col = pct < 30 ? '#A32D2D' : pct < 70 ? '#BA7517' : '#639922';
+  return `<span class="bar-bg"><span class="bar-fill" style="width:${pct}%;background:${col}"></span></span>${pct}%`;
+}
+
+// ── Órdenes ──────────────────────────────────────────────────
+function renderOrd(rows) {
+  document.getElementById('body-ord').innerHTML = rows.map(r => `<tr>
+    <td class="mono">${r.Nro_Orden}</td>
+    <td>${r.Fecha_Emision}</td>
+    <td>${r.Proveedor}</td>
+    <td>${r.Almacen_Destino}</td>
+    <td class="mono">${r.SKU}</td>
+    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${r.Descripcion}</td>
+    <td style="text-align:right">${fmt(r.Unidades_Totales)}</td>
+    <td style="text-align:right;font-weight:500">${fmt(r.Unidades_Pendientes)}</td>
+    <td style="text-align:right">${fmtD(r.Importe_Pendiente)}</td>
+    <td>${r.Fecha_ETA}</td>
+    <td>${diasPill(r.Dias_Para_ETA)}</td>
+    <td>${estatusTag(r.Estatus_ETA)}</td>
+    <td style="color:#666;font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis">${r.Notas||''}</td>
+  </tr>`).join('');
+}
+function filterOrd() {
+  const q   = document.getElementById('f-ord-q').value.toLowerCase();
+  const est = document.getElementById('f-ord-est').value;
+  renderOrd(DATA.ordenes.filter(r =>
+    (!q   || (r.SKU+r.Proveedor+r.Descripcion).toLowerCase().includes(q)) &&
+    (!est || r.Estatus_ETA === est)
+  ));
+}
+renderOrd(DATA.ordenes);
+
+// ── Tránsito ─────────────────────────────────────────────────
+function buildKpiTrans() {
+  const cnt = {'Verde':0,'Amarillo':0,'Rojo':0};
+  DATA.transito.forEach(r => cnt[r.Semaforo] = (cnt[r.Semaforo]||0) + 1);
+  document.getElementById('kpi-trans').innerHTML = `
+    <div class="kpi"><div class="kpi-label">En tiempo</div><div class="kpi-val c-green">${cnt.Verde}</div><div class="kpi-sub">embarques</div></div>
+    <div class="kpi"><div class="kpi-label">En riesgo</div><div class="kpi-val c-amber">${cnt.Amarillo}</div><div class="kpi-sub">embarques</div></div>
+    <div class="kpi"><div class="kpi-label">Atrasados</div><div class="kpi-val c-red">${cnt.Rojo}</div><div class="kpi-sub">requieren gestión</div></div>`;
+}
+function renderTrans(rows) {
+  document.getElementById('body-trans').innerHTML = rows.map(r => `<tr>
+    <td class="mono">${r.Nro_Embarque}</td>
+    <td class="mono">${r.Nro_Orden}</td>
+    <td>${r.Proveedor}</td>
+    <td>${r.Ciudad_Origen}, ${r.Pais_Origen}</td>
+    <td>${r.Almacen_Destino}</td>
+    <td>${r.Transportista}</td>
+    <td><span class="pill p-gray">${r.Modo_Transporte}</span></td>
+    <td>${r.Fecha_Emision}</td>
+    <td style="color:#666">${r.ETA_Original}</td>
+    <td style="font-weight:500">${r.ETA_Actual}</td>
+    <td>${diasPill(r.Dias_Para_Llegar)}</td>
+    <td>${semTag(r.Semaforo)}</td>
+    <td style="text-align:right">${fmt(r.Unidades_Pendientes)}</td>
+    <td style="text-align:right">${fmtD(r.Importe_Pendiente)}</td>
+    <td style="color:#666;font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis">${r.Notas||''}</td>
+  </tr>`).join('');
+}
+function filterTrans() {
+  const sem = document.getElementById('f-trans-sem').value;
+  renderTrans(DATA.transito.filter(r => !sem || r.Semaforo === sem));
+}
+buildKpiTrans();
+renderTrans(DATA.transito);
+
+// ── Inventario ───────────────────────────────────────────────
+function buildKpiInv() {
+  const valor = DATA.inventario.reduce((a,r) => a + (r.Valor_Inventario||0), 0);
+  const disp  = DATA.inventario.reduce((a,r) => a + (r.Stock_Disponible||0), 0);
+  const bajMin = DATA.inventario.filter(r => ['BAJO MÍNIMO','QUIEBRE'].includes(r.Alerta)).length;
+  const conOC  = DATA.inventario.filter(r => (r.Stock_En_Orden||0) > 0).length;
+  document.getElementById('kpi-inv').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Valor inventario</div><div class="kpi-val">${fmtD(valor)}</div><div class="kpi-sub">stock físico × AvgPrice</div></div>
+    <div class="kpi"><div class="kpi-label">Uds. disponibles</div><div class="kpi-val">${fmt(disp)}</div><div class="kpi-sub">OnHand − Committed</div></div>
+    <div class="kpi"><div class="kpi-label">SKUs bajo mínimo</div><div class="kpi-val c-amber">${bajMin}</div><div class="kpi-sub">de ${DATA.inventario.length} SKUs</div></div>
+    <div class="kpi"><div class="kpi-label">Con OC abierta</div><div class="kpi-val c-green">${conOC}</div><div class="kpi-sub">reabasto en curso</div></div>`;
+}
+function renderInv(rows) {
+  document.getElementById('body-inv').innerHTML = rows.map(r => `<tr>
+    <td class="mono">${r.SKU}</td>
+    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${r.Descripcion}</td>
+    <td><span class="pill p-gray">${r.Categoria}</span></td>
+    <td>${r.Almacen}</td>
+    <td style="text-align:right;font-weight:500">${fmt(r.Stock_Fisico)}</td>
+    <td style="text-align:right;color:#666">${fmt(r.Stock_Comprometido)}</td>
+    <td style="text-align:right;color:#185FA5;font-weight:500">${fmt(r.Stock_Disponible)}</td>
+    <td style="text-align:right;color:#3B6D11">${fmt(r.Stock_En_Orden)}</td>
+    <td style="text-align:right">${fmt(r.Stock_Proyectado)}</td>
+    <td style="text-align:right">${fmt(r.Stock_Minimo)}</td>
+    <td style="text-align:right">${fmt(r.Stock_Maximo)}</td>
+    <td>${bar(r.Stock_Fisico, r.Stock_Minimo, r.Stock_Maximo)}</td>
+    <td>${alertaTag(r.Alerta)}</td>
+    <td style="text-align:right">${fmtD(r.Valor_Inventario)}</td>
+  </tr>`).join('');
+}
+function filterInv() {
+  const alm    = document.getElementById('f-inv-alm').value;
+  const alerta = document.getElementById('f-inv-alerta').value;
+  renderInv(DATA.inventario.filter(r =>
+    (!alm    || r.Almacen === alm) &&
+    (!alerta || r.Alerta  === alerta)
+  ));
+}
+buildKpiInv();
+renderInv(DATA.inventario);
+
+// ── Movimientos ──────────────────────────────────────────────
+function renderMov(rows) {
+  document.getElementById('body-mov').innerHTML = rows.map(r => {
+    const neto = Number(r.Unidades_Neto);
+    const val  = Number(r.Valor_Movimiento);
+    const netoStyle = neto < 0 ? 'color:#A32D2D' : neto > 0 ? 'color:#3B6D11' : '';
+    return `<tr>
+      <td>${String(r.Fecha).slice(0,10)}</td>
+      <td class="mono">${r.Tipo_Transaccion_SAP}</td>
+      <td>${movTag(r.Tipo_Movimiento)}</td>
+      <td class="mono">${r.SKU}</td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis">${r.Descripcion}</td>
+      <td style="color:#666">${r.Almacen_Origen}</td>
+      <td style="color:#666">${r.Almacen_Destino}</td>
+      <td style="text-align:right;color:#3B6D11">${fmt(r.Unidades_Entrada)}</td>
+      <td style="text-align:right;color:#A32D2D">${fmt(r.Unidades_Salida)}</td>
+      <td style="text-align:right;font-weight:500;${netoStyle}">${neto > 0 ? '+' : ''}${fmt(neto)}</td>
+      <td style="text-align:right">${fmtD(r.Costo_Unitario)}</td>
+      <td style="text-align:right;font-weight:500;${val < 0 ? 'color:#A32D2D' : 'color:#3B6D11'}">${fmtD(val)}</td>
+      <td class="mono">${r.Nro_Documento}</td>
+      <td style="color:#666">${r.Responsable}</td>
+    </tr>`;
+  }).join('');
+}
+function filterMov() {
+  const tipo = document.getElementById('f-mov-tipo').value;
+  const alm  = document.getElementById('f-mov-alm').value;
+  renderMov(DATA.movimientos.filter(r =>
+    (!tipo || r.Tipo_Movimiento === tipo) &&
+    (!alm  || r.Almacen_Destino === alm || r.Almacen_Origen === alm)
+  ));
+}
+renderMov(DATA.movimientos);
+
+// ── Charts movimientos ────────────────────────────────────────
+setTimeout(() => {
+  const byTipo = {};
+  DATA.movimientos.forEach(r => {
+    byTipo[r.Tipo_Movimiento] = (byTipo[r.Tipo_Movimiento]||0) + Math.abs(r.Unidades_Neto);
+  });
+  const colMap = {Entrada:'#3B6D11',Salida:'#185FA5',Traspaso:'#888780',Devolución:'#BA7517',Ajuste:'#A32D2D'};
+  new Chart(document.getElementById('chartTipo'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(byTipo),
+      datasets: [{ data: Object.values(byTipo), backgroundColor: Object.keys(byTipo).map(k => colMap[k]||'#888') }]
+    },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{ y:{beginAtZero:true,ticks:{font:{size:10}}}, x:{ticks:{font:{size:10}}} } }
+  });
+
+  const byAlm = {};
+  DATA.movimientos.forEach(r => {
+    const k = r.Almacen_Destino;
+    byAlm[k] = (byAlm[k]||0) + Math.abs(r.Valor_Movimiento);
+  });
+  const almColors = ['#185FA5','#3B6D11','#BA7517','#888780','#A32D2D'];
+  new Chart(document.getElementById('chartAlm'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(byAlm),
+      datasets: [{ data: Object.values(byAlm).map(v => Math.round(v)), backgroundColor: almColors }]
+    },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'right',labels:{font:{size:10},boxWidth:10}} } }
+  });
+}, 50);
+
+// ── Tab switch ────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>
